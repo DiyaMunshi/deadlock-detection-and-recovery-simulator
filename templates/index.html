@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Deadlock Detection and Recovery</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    body {
+      background: linear-gradient(145deg, #e5d4f7, #fcd4e4, #d0e9ff);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    .container {
+      background: #f3eafc;
+      border-radius: 25px;
+      box-shadow: 10px 10px 20px #bebebe, -10px -10px 20px #ffffff;
+      padding: 30px;
+      width: 600px;
+      max-width: 90vw;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      color: #3b2a7b;
+      margin-bottom: 20px;
+    }
+
+    .input-group {
+      text-align: left;
+      margin-bottom: 15px;
+    }
+
+    .input-group label {
+      display: block;
+      font-weight: bold;
+      color: #3b2a7b;
+      margin-bottom: 5px;
+      font-size: 0.95rem;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      background: #fff7ff;
+      box-shadow: inset 1px 1px 5px #ddd;
+    }
+
+    button {
+      padding: 12px 20px;
+      background: linear-gradient(to right, #b6a5f5, #8f8df8);
+      color: white;
+      font-size: 0.95rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background: linear-gradient(to right, #a69cf0, #7672f3);
+    }
+
+    .result {
+      background: #ffffff;
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: inset 2px 2px 8px #e0d4e7;
+      color: #4a3f65;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    .result p {
+      margin: 6px 0;
+    }
+
+    .green {
+      color: green;
+      font-weight: bold;
+    }
+
+    .red {
+      color: red;
+      font-weight: bold;
+    }
+
+    .graph-section {
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    .graph-section img {
+      margin-top: 10px;
+      width: 100%;
+      max-width: 500px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    #terminateInput {
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Deadlock Detection (Recovery)</h1>
+
+    <div class="input-group">
+      <label for="processes">Processes (e.g. P1, P2, P3)</label>
+      <input type="text" id="processes" placeholder="e.g. P1, P2, P3" />
+    </div>
+
+    <div class="input-group">
+      <label for="allocation">Allocation Matrix (e.g. [[1,0],[0,1],[1,0]])</label>
+      <input type="text" id="allocation" placeholder="e.g. [[1,0],[0,1],[1,0]]" />
+    </div>
+
+    <div class="input-group">
+      <label for="request">Request Matrix (e.g. [[0,1],[1,0],[0,1]])</label>
+      <input type="text" id="request" placeholder="e.g. [[0,1],[1,0],[0,1]]" />
+    </div>
+
+    <button id="detectBtn">Detect</button>
+
+    <!-- Recovery section -->
+    <input type="text" id="terminateInput" placeholder="Enter process to terminate" style="display:none;" />
+    <button id="recoverBtn" style="display:none;">Recover</button>
+
+    <div id="outputBox" class="result" style="display:none;"></div>
+
+    <div class="graph-section" id="graphSection" style="display:none;">
+      <h3>Wait-For Graph</h3>
+      <img src="graph.png" alt="Wait For Graph" />
+    </div>
+  </div>
+
+ <script>
+  function collectFormData() {
+    return {
+      processes: document.getElementById("processes").value.split(',').map(p => p.trim()),
+      allocation: JSON.parse(document.getElementById("allocation").value),
+      request: JSON.parse(document.getElementById("request").value)
+    };
+  }
+
+  function showRecoveryInput() {
+    document.getElementById("terminateInput").style.display = "block";
+    document.getElementById("recoverBtn").style.display = "inline-block";
+  }
+
+  function hideRecoveryInput() {
+    document.getElementById("terminateInput").style.display = "none";
+    document.getElementById("recoverBtn").style.display = "none";
+  }
+
+  document.getElementById("detectBtn").addEventListener("click", async () => {
+    const data = collectFormData();
+
+    const response = await fetch("/detect-deadlock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    const outputBox = document.getElementById("outputBox");
+    const graphSection = document.getElementById("graphSection");
+    const graphImage = document.querySelector(".graph-section img");
+
+    outputBox.style.display = "block";
+    graphSection.style.display = "block";
+
+    // Refresh graph
+    graphImage.src = result.graphUrl + "?t=" + new Date().getTime();
+
+    if (result.deadlock) {
+      outputBox.innerHTML = `
+        <p class="red">Deadlock Detected</p>
+        <p>Please enter the process with lowest priority to terminate.</p>
+      `;
+      showRecoveryInput();
+    } else {
+      outputBox.innerHTML = `
+        <p class="green">No Deadlock Detected</p>
+        <p>All processes can execute safely.</p>
+      `;
+      hideRecoveryInput();
+    }
+  });
+
+ document.getElementById("recoverBtn").addEventListener("click", async () => {
+  const data = collectFormData();
+  data.terminate = document.getElementById("terminateInput").value;
+
+  const response = await fetch("/recover", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+
+  const result = await response.json();
+  const outputBox = document.getElementById("outputBox");
+  const graphSection = document.getElementById("graphSection");
+
+  outputBox.innerHTML = `
+    <p class="${result.deadlock ? 'red' : 'green'}">${result.message}</p>
+    <p>Terminated process: <strong>${result.terminated}</strong></p>
+    ${
+      result.updatedOrder.length
+        ? `<p>Updated execution order: <strong>${result.updatedOrder.join(', ')}</strong></p>`
+        : ""
+    }
+  `;
+
+  // Hide graph if deadlock is resolved
+  if (!result.deadlock) {
+    graphSection.style.display = "none";
+  }
+});
+
+
+</script>
+
+
+</body>
+</html>
